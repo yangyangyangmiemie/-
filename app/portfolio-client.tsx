@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, MouseEvent, PointerEvent } from "react";
 
 type Project = {
@@ -34,6 +34,8 @@ type Experience = {
 };
 
 const clamp = (value: number, min = 0, max = 1) => Math.min(max, Math.max(min, value));
+const rangeProgress = (value: number, start: number, end: number) =>
+  clamp((value - start) / (end - start));
 
 const aboutBio =
   "我是在尝试在互联网上构建事物时开始涉足原型设计的。起初是从编写代码入手，但逐渐在理解人与弄清产品究竟如何产生实际影响的过程中，我变得愈发着迷。这不仅仅关乎事物的外观，更关乎它们如何影响人们的感受。如今，我从事横跨产品设计与人工智能领域的工作，致力于尽可能快地将创意转化为体验。工作之余，任何能带来活力与动感的事物都是我的兴趣所在。正是这种对世界进行观察的执着，最初促使我爱上了产品设计。";
@@ -151,6 +153,8 @@ const archiveProjectOrder = [
   "longgang",
 ];
 
+const helloMessage = "您好，很高兴有机会与您沟通！";
+
 const archiveImages: Record<string, string> = {
   taiqitong: "/archive-taiqitong.png",
   "suiqi-cloud": "/archive-suiqi-cloud.png",
@@ -194,6 +198,57 @@ const competencyCards = [
   },
 ];
 
+const credentialSections = [
+  {
+    title: "论文与专利",
+    items: [
+      "/credential-ieee-paper.png",
+      "/credential-campus-paper.png",
+      "/credential-utility-patent.png",
+      "/credential-patent-acceptance.png",
+    ],
+  },
+  {
+    title: "技能证书",
+    featured: [
+      "/credential-aws.png",
+      "/credential-occupation-skill.png",
+      "/credential-aca.png",
+    ],
+    items: [
+      "/credential-clouder-ecs-ops.png",
+      "/credential-tencent-lowcode.jpg",
+      "/credential-tencent-miniprogram.jpg",
+      "/credential-tencent-devops.jpg",
+      "/credential-tdsql-mysql.jpg",
+      "/credential-clouder-ecs.png",
+      "/credential-clouder-storage.png",
+      "/credential-clouder-polardb.png",
+      "/credential-clouder-container.png",
+      "/credential-clouder-rds.png",
+      "/credential-clouder-sql.png",
+      "/credential-clouder-ecs-ops.png",
+    ],
+  },
+  {
+    title: "相关荣誉证书",
+    items: [
+      "/credential-honor-zhongchuang.png",
+      "/credential-honor-tech-invention.png",
+      "/credential-honor-scholarship-2022.png",
+      "/credential-honor-scholarship-2023.png",
+      "/credential-honor-principal.png",
+      "/credential-honor-student-cadre.png",
+      "/credential-honor-maker-18.png",
+      "/credential-honor-mos-18.png",
+      "/credential-honor-web-design-19.png",
+      "/credential-honor-industry-19.png",
+      "/credential-honor-maker-19.png",
+      "/credential-honor-bay-area.png",
+    ],
+  },
+];
+
 const playgroundCards = [
   { title: "政策计算器", image: "/playground-policy-calculator.png" },
   { title: "服务中心", image: "/playground-service-center.png" },
@@ -220,7 +275,7 @@ const experiences: Experience[] = [
   {
     id: "tengyun",
     company: "深圳市腾云驾悟科技有限公司",
-    role: "项目助理",
+    role: "产品助理",
     date: "2023.07-2024.09",
     badge: "项目管理 · 软硬件协同",
     x: "18%",
@@ -368,11 +423,49 @@ export default function PortfolioClient() {
   const [competenciesVisible, setCompetenciesVisible] = useState(false);
   const [activePlayground, setActivePlayground] = useState<string | null>(null);
   const [greetingOpen, setGreetingOpen] = useState(false);
+  const [helloTypingStarted, setHelloTypingStarted] = useState(false);
+  const [typedHelloMessage, setTypedHelloMessage] = useState("");
   const [darkProgress, setDarkProgress] = useState(0);
+  const [workRevealProgress, setWorkRevealProgress] = useState(0);
   const aiGridRef = useRef<HTMLDivElement | null>(null);
   const archiveRef = useRef<HTMLElement | null>(null);
   const competenciesRef = useRef<HTMLElement | null>(null);
   const competenciesContentRef = useRef<HTMLDivElement | null>(null);
+  const workRevealRef = useRef<HTMLElement | null>(null);
+  const helloRef = useRef<HTMLElement | null>(null);
+  const workRevealProgressRef = useRef(0);
+  const pendingWorkRevealProgressRef = useRef(0);
+  const visualWorkRevealProgressRef = useRef(0);
+  const workRevealFrameRef = useRef(0);
+  const workRevealLockedRef = useRef(false);
+  const workRevealCompleteRef = useRef(false);
+  const workRevealStartedRef = useRef(false);
+  const workRevealReturningRef = useRef(false);
+  const workPageScrollLockRef = useRef<{
+    htmlOverflow: string;
+    bodyOverflow: string;
+  } | null>(null);
+
+  const lockWorkPageScroll = useCallback(() => {
+    if (workPageScrollLockRef.current) return;
+
+    const root = document.documentElement;
+    workPageScrollLockRef.current = {
+      htmlOverflow: root.style.overflow,
+      bodyOverflow: document.body.style.overflow,
+    };
+    root.style.overflow = "hidden";
+    document.body.style.overflow = "hidden";
+  }, []);
+
+  const unlockWorkPageScroll = useCallback(() => {
+    const saved = workPageScrollLockRef.current;
+    if (!saved) return;
+
+    document.documentElement.style.overflow = saved.htmlOverflow;
+    document.body.style.overflow = saved.bodyOverflow;
+    workPageScrollLockRef.current = null;
+  }, []);
 
   const archiveProjects = useMemo(
     () =>
@@ -400,6 +493,61 @@ export default function PortfolioClient() {
     const y = ((event.clientY - rect.top) / rect.height - 0.5) * 10;
     setCardOffset({ x, y });
   };
+
+  const titleInProgress = rangeProgress(workRevealProgress, 0.1, 0.24);
+  const titleOutProgress = rangeProgress(workRevealProgress, 0.34, 0.48);
+  const cloudOpenProgress = rangeProgress(workRevealProgress, 0.42, 0.82);
+  const mapRevealProgress = rangeProgress(workRevealProgress, 0.58, 0.88);
+  const nodeRevealProgress = rangeProgress(workRevealProgress, 0.78, 0.94);
+  const revealTitleOpacity = titleInProgress * (1 - titleOutProgress);
+  const revealTitleY = 22 * (1 - titleInProgress) - 24 * titleOutProgress;
+  const revealTitleScale = 0.98 + 0.02 * titleInProgress;
+  const revealTitleTone = Math.round(188 - 188 * titleInProgress);
+  const revealMapScale = 1.05 - 0.05 * mapRevealProgress;
+  const mapFocusScale = selectedExperience ? 1.045 : 1;
+  const workRevealStyle = {
+    "--reveal-progress": workRevealProgress,
+    "--title-opacity": revealTitleOpacity,
+    "--title-y": `${revealTitleY}px`,
+    "--title-scale": revealTitleScale,
+    "--title-tone": revealTitleTone,
+    "--cloud-open": cloudOpenProgress,
+    "--map-reveal": mapRevealProgress,
+    "--node-reveal": nodeRevealProgress,
+    "--map-scale": revealMapScale * mapFocusScale,
+    "--map-blur": `${5 * (1 - mapRevealProgress)}px`,
+    "--map-brightness": 1.18 - mapRevealProgress * 0.18,
+    "--map-contrast": 0.9 + mapRevealProgress * 0.12,
+    "--map-saturate": 0.9 + mapRevealProgress * 0.1,
+    "--whiteout-opacity": 1 - cloudOpenProgress,
+    "--whiteout-x": `${cloudOpenProgress * -74}vw`,
+    "--whiteout-blur": `${14 - cloudOpenProgress * 7}px`,
+    "--whiteout-center-x": `${54 - cloudOpenProgress * 42}%`,
+    "--fog-one-opacity": 0.82 - cloudOpenProgress * 0.82,
+    "--fog-one-x": `${cloudOpenProgress * -76}vw`,
+    "--fog-two-opacity": 0.92 - cloudOpenProgress * 0.92,
+    "--fog-two-x": `${cloudOpenProgress * -88}vw`,
+    "--fog-two-main-x": `${60 - cloudOpenProgress * 40}%`,
+    "--fog-two-soft-x": `${48 - cloudOpenProgress * 28}%`,
+    "--left-back-x": `${cloudOpenProgress * -96}vw`,
+    "--left-back-opacity": 0.64 - cloudOpenProgress * 0.64,
+    "--left-front-x": `${cloudOpenProgress * -112}vw`,
+    "--left-front-y": `${cloudOpenProgress * 6}vh`,
+    "--left-front-opacity": 0.78 - cloudOpenProgress * 0.78,
+    "--right-back-x": `${cloudOpenProgress * -122}vw`,
+    "--right-back-opacity": 0.76 - cloudOpenProgress * 0.76,
+    "--right-front-x": `${cloudOpenProgress * -138}vw`,
+    "--right-front-y": `${cloudOpenProgress * 4}vh`,
+    "--right-front-opacity": 0.84 - cloudOpenProgress * 0.84,
+    "--top-cloud-x": `${cloudOpenProgress * -104}vw`,
+    "--top-cloud-y": `${cloudOpenProgress * -9}vh`,
+    "--top-cloud-opacity": 0.58 - cloudOpenProgress * 0.58,
+    "--bottom-cloud-x": `${cloudOpenProgress * -116}vw`,
+    "--bottom-cloud-y": `${cloudOpenProgress * 8}vh`,
+    "--bottom-cloud-opacity": 0.66 - cloudOpenProgress * 0.66,
+    "--center-wisp-x": `${cloudOpenProgress * -128}vw`,
+    "--center-wisp-opacity": 0.34 - cloudOpenProgress * 0.34,
+  } as CSSProperties;
 
   useEffect(() => {
     if ("scrollRestoration" in window.history) {
@@ -480,6 +628,39 @@ export default function PortfolioClient() {
   }, []);
 
   useEffect(() => {
+    const node = helloRef.current;
+    if (!node) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting) return;
+        setHelloTypingStarted(true);
+        observer.disconnect();
+      },
+      { rootMargin: "0px 0px -16% 0px", threshold: 0.18 },
+    );
+
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!helloTypingStarted) return;
+
+    setTypedHelloMessage("");
+    let index = 0;
+    const timer = window.setInterval(() => {
+      index += 1;
+      setTypedHelloMessage(helloMessage.slice(0, index));
+      if (index >= helloMessage.length) {
+        window.clearInterval(timer);
+      }
+    }, 90);
+
+    return () => window.clearInterval(timer);
+  }, [helloTypingStarted]);
+
+  useEffect(() => {
     const updateDarkScene = () => {
       const node = competenciesRef.current;
       if (!node) return;
@@ -501,6 +682,180 @@ export default function PortfolioClient() {
       window.removeEventListener("resize", updateDarkScene);
     };
   }, []);
+
+  useEffect(() => {
+    let frame = 0;
+
+    const updateWorkReveal = () => {
+      frame = 0;
+      const node = workRevealRef.current;
+      if (!node) return;
+
+      const rect = node.getBoundingClientRect();
+      const viewport = window.innerHeight || document.documentElement.clientHeight;
+
+      // Scrolling back above the scene arms the entrance sequence again.
+      if (rect.top > viewport) {
+        unlockWorkPageScroll();
+        workRevealLockedRef.current = false;
+        workRevealCompleteRef.current = false;
+        workRevealStartedRef.current = false;
+        workRevealReturningRef.current = false;
+        workRevealProgressRef.current = 0;
+        pendingWorkRevealProgressRef.current = 0;
+        visualWorkRevealProgressRef.current = 0;
+        setWorkRevealProgress(0);
+      }
+    };
+
+    const requestUpdate = () => {
+      if (frame) return;
+      frame = window.requestAnimationFrame(updateWorkReveal);
+    };
+
+    requestUpdate();
+    window.addEventListener("scroll", requestUpdate, { passive: true });
+    window.addEventListener("resize", requestUpdate);
+    return () => {
+      if (frame) window.cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", requestUpdate);
+      window.removeEventListener("resize", requestUpdate);
+    };
+  }, [unlockWorkPageScroll]);
+
+  useEffect(() => {
+    const renderWorkProgress = (progress: number) => {
+      pendingWorkRevealProgressRef.current = progress;
+      if (workRevealFrameRef.current) return;
+
+      const animateWorkProgress = () => {
+        const target = pendingWorkRevealProgressRef.current;
+        const current = visualWorkRevealProgressRef.current;
+        const difference = target - current;
+        const next = Math.abs(difference) < 0.001 ? target : current + difference * 0.16;
+
+        visualWorkRevealProgressRef.current = next;
+        setWorkRevealProgress(next);
+
+        if (next !== target) {
+          workRevealFrameRef.current = window.requestAnimationFrame(animateWorkProgress);
+          return;
+        }
+
+        workRevealFrameRef.current = 0;
+        if (target >= 0.999) {
+          workRevealCompleteRef.current = true;
+          workRevealLockedRef.current = false;
+          unlockWorkPageScroll();
+        }
+        if (target <= 0.001 && workRevealReturningRef.current) {
+          workRevealLockedRef.current = false;
+          workRevealStartedRef.current = false;
+          workRevealReturningRef.current = false;
+          unlockWorkPageScroll();
+        }
+      };
+
+      workRevealFrameRef.current = window.requestAnimationFrame(animateWorkProgress);
+    };
+
+    const handleWorkWheel = (event: WheelEvent) => {
+      const node = workRevealRef.current;
+      if (!node) return;
+
+      const rect = node.getBoundingClientRect();
+      const viewport = window.innerHeight || document.documentElement.clientHeight;
+      const sectionTop = window.scrollY + rect.top;
+      const movingForward = event.deltaY > 0;
+      const movingBackward = event.deltaY < 0;
+
+      // Catch the scroll before it can pass the map. From here until the map is
+      // fully visible, the wheel controls only the entrance animation.
+      const reachesEntrance =
+        movingForward &&
+        !workRevealCompleteRef.current &&
+        !workRevealLockedRef.current &&
+        !workRevealStartedRef.current &&
+        window.scrollY < sectionTop &&
+        window.scrollY + event.deltaY >= sectionTop - viewport * 0.45;
+
+      // Momentum can land inside the section before the preceding condition sees
+      // it. Snap that case back to the start as well, so it cannot be skipped.
+      const landsInsideEntrance =
+        movingForward &&
+        !workRevealCompleteRef.current &&
+        !workRevealLockedRef.current &&
+        !workRevealStartedRef.current &&
+        rect.top <= viewport * 0.55 &&
+        rect.top > -viewport * 0.9 &&
+        rect.bottom > viewport * 0.55;
+
+      // When the visitor comes back from the revealed map, play the same
+      // sequence backwards before allowing the page to move above the scene.
+      const returnsToEntrance =
+        movingBackward &&
+        workRevealCompleteRef.current &&
+        !workRevealLockedRef.current &&
+        rect.top <= viewport * 0.35 &&
+        rect.bottom > viewport * 0.55;
+
+      if (reachesEntrance || landsInsideEntrance) {
+        event.preventDefault();
+        workRevealLockedRef.current = true;
+        workRevealStartedRef.current = true;
+        workRevealReturningRef.current = false;
+        workRevealProgressRef.current = 0;
+        renderWorkProgress(0);
+        window.scrollTo({ top: sectionTop, behavior: "auto" });
+        lockWorkPageScroll();
+        return;
+      }
+
+      if (returnsToEntrance) {
+        event.preventDefault();
+        workRevealLockedRef.current = true;
+        workRevealCompleteRef.current = false;
+        workRevealStartedRef.current = true;
+        workRevealReturningRef.current = false;
+        workRevealProgressRef.current = 1;
+        pendingWorkRevealProgressRef.current = 1;
+        visualWorkRevealProgressRef.current = 1;
+        setWorkRevealProgress(1);
+        window.scrollTo({ top: sectionTop, behavior: "auto" });
+        lockWorkPageScroll();
+        return;
+      }
+
+      if (!workRevealLockedRef.current) return;
+
+      event.preventDefault();
+      const animationDistance = Math.max(viewport * 2.4, 1600);
+      const nextProgress = clamp(
+        workRevealProgressRef.current + event.deltaY / animationDistance,
+      );
+
+      workRevealProgressRef.current = nextProgress;
+      renderWorkProgress(nextProgress);
+
+      if (movingForward && nextProgress >= 0.999) {
+        workRevealProgressRef.current = 1;
+      }
+
+      if (movingBackward && nextProgress <= 0.001) {
+        workRevealProgressRef.current = 0;
+        workRevealReturningRef.current = true;
+      }
+    };
+
+    window.addEventListener("wheel", handleWorkWheel, { passive: false });
+    return () => {
+      window.removeEventListener("wheel", handleWorkWheel);
+      if (workRevealFrameRef.current) {
+        window.cancelAnimationFrame(workRevealFrameRef.current);
+      }
+      unlockWorkPageScroll();
+    };
+  }, [lockWorkPageScroll, unlockWorkPageScroll]);
 
   useEffect(() => {
     const sections = navItems
@@ -691,12 +1046,15 @@ export default function PortfolioClient() {
         </div>
       </section>
 
-      <section className="work-section" aria-label="工作经历地图">
-        <h2 className="work-section-title">
-          Where this work happened<span>.</span>
-        </h2>
+      <section
+        className="work-section"
+        aria-label="工作经历地图"
+        ref={workRevealRef}
+        style={workRevealStyle}
+      >
+        <div className="work-sticky-stage">
         <div
-          className="city-scene"
+          className={`city-scene ${workRevealProgress > 0.88 ? "is-revealed" : ""}`}
           aria-label="可点击的工作经历地图"
           onClick={() => selectedExperience && setSelectedExperience(null)}
           onPointerMove={handleCityPointerMove}
@@ -708,10 +1066,24 @@ export default function PortfolioClient() {
               {
                 "--mx": `${sceneOffset.x}px`,
                 "--my": `${sceneOffset.y}px`,
-                "--focus-scale": selectedExperience ? 1.045 : 1,
               } as CSSProperties
             }
           />
+          <div className="reveal-whiteout" aria-hidden="true" />
+          <div className="reveal-fog reveal-fog-one" aria-hidden="true" />
+          <div className="reveal-fog reveal-fog-two" aria-hidden="true" />
+          <div className="reveal-clouds" aria-hidden="true">
+            <img className="reveal-cloud cloud-left-back" src="/reveal-clouds/cloud-1.png" alt="" />
+            <img className="reveal-cloud cloud-left-front" src="/reveal-clouds/cloud-3.png" alt="" />
+            <img className="reveal-cloud cloud-right-back" src="/reveal-clouds/cloud-2.png" alt="" />
+            <img className="reveal-cloud cloud-right-front" src="/reveal-clouds/cloud-1.png" alt="" />
+            <img className="reveal-cloud cloud-top" src="/reveal-clouds/cloud-3.png" alt="" />
+            <img className="reveal-cloud cloud-bottom" src="/reveal-clouds/cloud-2.png" alt="" />
+            <img className="reveal-cloud cloud-center-wisp" src="/reveal-clouds/cloud-3.png" alt="" />
+          </div>
+          <h2 className="work-section-title">
+            Where this work happened<span>.</span>
+          </h2>
           <div className="scene-mist mist-one" />
           <div className="scene-mist mist-two" />
           <div className="scene-mist mist-three" />
@@ -736,7 +1108,8 @@ export default function PortfolioClient() {
             type="button"
             onClick={(event) => {
               event.stopPropagation();
-              setSelectedExperience(experiences[0]);
+              setSelectedExperience(null);
+              jumpTo("about", "About");
             }}
           >
             <p>THIS LOT IS OPEN</p>
@@ -748,6 +1121,7 @@ export default function PortfolioClient() {
               onClose={() => setSelectedExperience(null)}
             />
           )}
+        </div>
         </div>
       </section>
 
@@ -800,7 +1174,7 @@ export default function PortfolioClient() {
               <article className="competency-card" key={card.title}>
                 <h3>{card.title}</h3>
                 <p>{card.text}</p>
-                <div>
+                <div className="competency-tags">
                   {card.tags.map((tag) => (
                     <span key={tag}>{tag}</span>
                   ))}
@@ -808,17 +1182,79 @@ export default function PortfolioClient() {
               </article>
             ))}
           </div>
+          <div className="credential-wall" aria-label="证书与成果展示">
+            {credentialSections.map((section) => (
+              <section className="credential-category" key={section.title}>
+                <div className="credential-category-head">
+                  <p>Proof Archive</p>
+                  <h3>{section.title}</h3>
+                </div>
+                {"featured" in section && section.featured ? (
+                  <>
+                    <div className="credential-featured-row">
+                      {section.featured.map((image, index) => (
+                        <article className="credential-tile" key={image}>
+                          <img src={image} alt={`${section.title}重点证书${index + 1}`} />
+                        </article>
+                      ))}
+                    </div>
+                    <div className="credential-small-row">
+                      {section.items.map((image, index) => (
+                        <article className="credential-tile" key={image}>
+                          <img src={image} alt={`${section.title}证书${index + 1}`} />
+                        </article>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div
+                      className={
+                        section.title === "相关荣誉证书" ? "credential-honor-row" : "credential-row"
+                      }
+                    >
+                      {section.items.map((image, index) => (
+                        <article className="credential-tile" key={image}>
+                          <img src={image} alt={`${section.title}材料${index + 1}`} />
+                        </article>
+                      ))}
+                    </div>
+                    {section.title === "相关荣誉证书" && (
+                      <div className="honor-explore-note" aria-label="继续探索">
+                        <img
+                          className="honor-explore-image"
+                          src="/honor-continue-explore.png"
+                          alt="继续探索"
+                        />
+                        <img
+                          className="honor-explore-arrow"
+                          src="/honor-continue-arrow.png"
+                          alt=""
+                          aria-hidden="true"
+                        />
+                      </div>
+                    )}
+                  </>
+                )}
+              </section>
+            ))}
+          </div>
         </div>
       </section>
       </div>
 
-      <section className="hello-section" aria-label="打招呼">
+      <section className="hello-section" aria-label="打招呼" ref={helloRef}>
         <div className="hello-inner">
           <h2>Let's have coffee?</h2>
           <div className={`hello-card ${greetingOpen ? "is-open" : ""}`}>
             <div className="hello-row">
               <img src="/loader-avatar.png" alt="李臻炀头像" />
-              <p>你好啊~</p>
+              <p
+                aria-live="polite"
+                className={typedHelloMessage.length < helloMessage.length ? "is-typing" : ""}
+              >
+                {typedHelloMessage || "\u00A0"}
+              </p>
             </div>
             <div className="hello-actions">
               <button type="button" onClick={() => setGreetingOpen(true)}>
@@ -829,7 +1265,7 @@ export default function PortfolioClient() {
             <div className="hello-reply">
               <img src="/loader-avatar.png" alt="" />
               <p>
-                你好，很高兴认识你！很期待可以与您合作！
+                期待可以与您合作！
                 <a href="mailto:2294705637@qq.com">2294705637@qq.com</a>
               </p>
             </div>
